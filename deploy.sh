@@ -93,16 +93,27 @@ if [ -n "$PID" ]; then
   $SUDO kill -9 "$PID" 2>/dev/null || true
 fi
 
-# 用 nohup 重新启动(输出到 cybermind.log)。
-# 关键: stdin 必须指向 /dev/null,否则后台进程会占住 SSH 通道,
-# 导致 GitHub Actions / 远程执行一直等不到命令结束而挂起。
+# 用 setsid + nohup 重新启动(输出到 cybermind.log)。
+# - </dev/null: 关键!否则后台进程会占住 SSH 通道,远程执行(GitHub Actions)等不到结束而挂起。
+# - setsid: 让进程完全脱离当前会话/进程组,避免 GitHub Actions 关闭 SSH 会话时
+#   对后台进程组做收尾(会误报退出码或给进程发信号)。
 # shellcheck disable=SC2086
-nohup ./cybermind $RESTART_ARGS </dev/null > cybermind.log 2>&1 &
+setsid ./cybermind $RESTART_ARGS </dev/null > cybermind.log 2>&1 &
 NEW_PID=$!
 echo "    已启动 PID=$NEW_PID,参数:${RESTART_ARGS}"
-sleep 2
 
-if kill -0 "$NEW_PID" 2>/dev/null; then
+# 多等一会儿再确认存活,同时用 HTTP 探活双保险(防止刚启动还没绑好端口误判)
+sleep 3
+UP=0
+for _ in $(seq 1 10); do
+  if kill -0 "$NEW_PID" 2>/dev/null; then
+    UP=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "$UP" = 1 ]; then
   echo "✅ 重启成功,进程存活 (PID=$NEW_PID)"
   echo "    日志: cybermind.log"
 else
