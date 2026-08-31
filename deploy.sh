@@ -67,7 +67,8 @@ fi
 
 # 方式B: nohup 后台进程(保留原启动参数重启)
 SUDO=""
-PID="$(pgrep -f 'cybermind' | head -1 || true)"
+# 只用进程名精确匹配 cybermind,避免误匹配到本脚本自身或其它命令行
+PID="$(pgrep -x cybermind | head -1 || true)"
 if [ -n "$PID" ]; then
   # 若进程属于其他用户,需要用 sudo 才能 kill
   if [ "$(ps -o user= -p "$PID" | tr -d ' ')" != "$(id -un)" ]; then
@@ -92,9 +93,11 @@ if [ -n "$PID" ]; then
   $SUDO kill -9 "$PID" 2>/dev/null || true
 fi
 
-# 用 nohup 重新启动(输出到 cybermind.log)
+# 用 nohup 重新启动(输出到 cybermind.log)。
+# 关键: stdin 必须指向 /dev/null,否则后台进程会占住 SSH 通道,
+# 导致 GitHub Actions / 远程执行一直等不到命令结束而挂起。
 # shellcheck disable=SC2086
-nohup ./cybermind $RESTART_ARGS > cybermind.log 2>&1 &
+nohup ./cybermind $RESTART_ARGS </dev/null > cybermind.log 2>&1 &
 NEW_PID=$!
 echo "    已启动 PID=$NEW_PID,参数:${RESTART_ARGS}"
 sleep 2
