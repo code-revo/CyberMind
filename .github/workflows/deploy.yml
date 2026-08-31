@@ -1,0 +1,31 @@
+name: Deploy to Server
+
+# 推送到 master/main 后,自动 SSH 到服务器执行 deploy.sh
+# (deploy.sh 负责 git pull + 编译后端 + 重启,前后端一起更新)
+on:
+  push:
+    branches: [master, main]
+
+concurrency:
+  group: deploy-cybermind
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH 执行服务器部署脚本
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_DIR }}"
+            chmod +x deploy.sh
+            ./deploy.sh
