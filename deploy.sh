@@ -12,6 +12,10 @@
 #                      例如 ./cybermind 原启动参数,会自动保留
 set -euo pipefail
 
+# 非交互式 SSH(如 GitHub Actions)可能不在 PATH 里,显式加上 Go
+export PATH="/usr/local/go/bin:${PATH:-}"
+export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
+
 cd "$(dirname "$0")"
 
 echo "==> [1/4] 拉取最新代码"
@@ -35,7 +39,6 @@ fi
 go version
 
 echo "==> [3/4] 编译后端"
-export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
 go build -trimpath -ldflags="-s -w" -o cybermind.new cmd/server/main.go
 mv -f cybermind.new cybermind
 chmod +x cybermind
